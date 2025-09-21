@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Biblioteca de Prompts</title>
+  <style>
+    :root{
+      --bg:#1e1e1e;--panel:#2a2a2a;--sidebar:#3a3a3a;
+      --muted:#a0a0a0;--text:#f0f0f0;--primary:#3b82f6;
+      --border:#444;--accent:#333;--shadow:0 10px 20px rgba(0,0,0,.4);
+      --radius:16px;
+      --button-bg:#454545;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;color:var(--text);background:var(--bg)}
+    .app{display:grid;grid-template-columns:280px 1fr;height:100vh;gap:16px;padding:16px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .sidebar{background:var(--sidebar);display:flex;flex-direction:column;padding:12px;border:1px solid var(--border);border-radius:var(--radius)}
+    .title{font-weight:700;font-size:16px;margin-bottom:10px}
+    .row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+    button, .btn, select{
+      appearance:none;border:1px solid var(--border);
+      background:var(--button-bg);color:var(--text);
+      border-radius:10px;padding:8px 10px;cursor:pointer;
+      transition:filter .2s, background .2s, border-color .2s, opacity .2s;
+    }
+    button:hover, select:hover{filter:brightness(1.12)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .folders{display:flex;flex-direction:column;gap:6px;overflow:auto;padding-right:4px}
+    .folder{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-radius:12px;cursor:pointer;border:1px dashed transparent}
+    .folder[data-active="true"]{background:var(--accent)}
+    .folder.drop-target{border-color:var(--primary);}
+    .folder .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .folder .count{font-size:12px;color:var(--muted)}
+    .main{display:flex;flex-direction:column;min-width:0}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid var(--border)}
+    .toolbar .right{display:flex;gap:8px;align-items:center}
+    .toolbar .left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .search input{border:1px solid var(--border);border-radius:10px;padding:8px 10px;min-width:200px;background:#111;color:var(--text)}
+    .grid{
+      padding:12px;
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+      gap:12px;
+      overflow:auto
+    }
+    .card{
+      position:relative;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px 8px 10px 8px;
+      background:#2f2f2f;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-height:120px;
+      max-height:220px;
+      overflow:hidden
+    }
+    .card h3{
+      margin:0;
+      font-size:14px;
+      white-space:normal;
+      overflow:visible;
+      text-overflow:unset
+    }
+    .card p{
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      display:-webkit-box;
+      -webkit-line-clamp:5;
+      -webkit-box-orient:vertical
+    }
+    .card .actions{margin-top:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .card .sel{
+      position:absolute;left:8px;top:8px;
+      width:18px;height:18px;border:1px solid var(--border);border-radius:6px;
+      display:none;align-items:center;justify-content:center;background:#1a1a1a
+    }
+    .card .sel input{width:14px;height:14px;margin:0}
+    .select-mode .card .sel{display:flex}
+    .card.selected{outline:2px solid var(--primary);outline-offset:0}
+    .ghost{opacity:.4}
+    .card.drop-target{outline:2px dashed var(--primary)}
+    .empty{padding:32px;text-align:center;color:var(--muted)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(17,17,20,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+    .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);max-width:560px;width:100%;padding:16px;display:flex;flex-direction:column;gap:12px;color:var(--text)}
+    .modal h4{margin:0}
+    .modal .field{display:flex;flex-direction:column;gap:6px}
+    .modal input,.modal textarea, .modal select{border:1px solid var(--border);border-radius:10px;padding:10px;background:#111;color:var(--text)}
+    .modal textarea{min-height:140px;resize:vertical}
+    .modal .footer{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .modal-backdrop.show{display:flex}
+    .folderSelect{background:#1a1a1a}
+    .left-footer{display:flex;gap:8px;align-items:center}
+    .palette{position:absolute;right:16px;top:62px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px;display:none;gap:8px;z-index:20}
+    .palette.show{display:flex;flex-wrap:wrap;max-width:420px}
+    .swatch{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:inline-block}
+    .swatch[title]{position:relative}
+    .swatch[title]::after{content:attr(title);position:absolute;left:50%;transform:translateX(-50%);bottom:-18px;font-size:10px;color:var(--muted)}
+    .badge{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="title">Carpetas</div>
+      <div class="row">
+        <button id="addFolderBtn" class="btn-primary">+ Carpeta</button>
+        <button id="renameFolderBtn">Renombrar</button>
+        <button id="deleteFolderBtn">Eliminar</button>
+      </div>
+      <div id="folders" class="folders"></div>
+      <div class="row">
+        <button id="exportBtn">Exportar</button>
+        <button id="importBtn">Importar</button>
+        <input type="file" id="importFile" style="display:none" accept="application/json" />
+      </div>
+    </aside>
+
+    <section class="panel main">
+      <div class="toolbar">
+        <div class="left">
+          <button id="addCardBtn" class="btn-primary">+ Prompt</button>
+          <button id="selectModeBtn">Seleccionar</button>
+          <button id="deleteSelectedBtn" disabled>Eliminar seleccionados</button>
+          <span id="selCount" class="badge"></span>
+          <button id="undoBtn">↩︎ Deshacer</button>
+          <button id="redoBtn">↪︎ Rehacer</button>
+        </div>
+        <div class="right">
+          <button id="themeBtn">🎨 Tema</button>
+          <div class="search"><input id="searchInput" type="search" placeholder="Buscar…" /></div>
+        </div>
+      </div>
+      <div id="cardsGrid" class="grid"></div>
+      <div id="palette" class="palette"></div>
+    </section>
+  </div>
+
+  <div id="modal" class="modal-backdrop">
+    <div class="modal">
+      <h4 id="modalTitle">Editar tarjeta</h4>
+      <div class="field"><label for="cardTitle">Título</label><input id="cardTitle" type="text" /></div>
+      <div class="field"><label for="cardDesc">Descripción / Prompt</label><textarea id="cardDesc"></textarea></div>
+      <div class="footer">
+        <div class="left-footer"><label for="cardFolder">Carpeta</label><select id="cardFolder" class="folderSelect"></select></div>
+        <div><button id="cancelEdit">Cancelar</button><button id="saveEdit" class="btn-primary">Guardar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const uid=()=>(Math.random().toString(36).slice(2,9));
+    const $=s=>document.querySelector(s);
+    const STORAGE_KEY='promptLibrary.v1';const THEME_KEY='promptLibrary.theme.v1';
+    let state=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{"folders":[],"activeFolderId":null}');
+    const foldersEl=$('#folders'),gridEl=$('#cardsGrid');
+    let selectionMode=false;
+    let selectedIds=new Set();
+
+    // ===== Historial (Undo/Redo) =====
+    const MAX_HISTORY = 50;
+    let history = []; let future = [];
+    const snapshot = ()=> JSON.stringify(state);
+    function pushHistory(){ history.push(snapshot()); if(history.length>MAX_HISTORY) history.shift(); future=[]; updateUndoButtons(); }
+    function applySnapshot(json){ try{ state=JSON.parse(json); save(); render(); updateUndoButtons(); clearSelection(); }catch{} }
+    function canUndo(){ return history.length>0; }
+    function canRedo(){ return future.length>0; }
+    function undo(){ if(!canUndo()) return; const current=snapshot(); const prev=history.pop(); future.push(current); applySnapshot(prev); }
+    function redo(){ if(!canRedo()) return; const current=snapshot(); const next=future.pop(); history.push(current); applySnapshot(next); }
+    function updateUndoButtons(){ const ub=$('#undoBtn'),rb=$('#redoBtn'); if(ub) ub.disabled=!canUndo(); if(rb) rb.disabled=!canRedo(); }
+
+    document.addEventListener('keydown', e=>{
+      const mod=e.ctrlKey||e.metaKey;
+      if(mod && e.key.toLowerCase()==='z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
+      else if(mod && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
+      else if(mod && e.key.toLowerCase()==='a' && selectionMode){ e.preventDefault(); selectAllVisible(); }
+      else if(e.key==='Escape' && selectionMode){ clearSelection(); }
+    });
+    $('#undoBtn').onclick=undo; $('#redoBtn').onclick=redo;
+
+    // ===== Tema
+    const palettes=[
+      {name:'Oscuro',vars:{bg:'#1e1e1e',panel:'#2a2a2a',sidebar:'#3a3a3a',text:'#f0f0f0',muted:'#a0a0a0',border:'#444',accent:'#333',primary:'#3b82f6'}},
+      {name:'Claro',vars:{bg:'#f6f7fb',panel:'#ffffff',sidebar:'#f0f0f0',text:'#0f172a',muted:'#5a6783',border:'#e5e7eb',accent:'#f1f5f9',primary:'#2563eb'}},
+      {name:'Oliva',vars:{bg:'#1f2421',panel:'#2e3b2b',sidebar:'#394836',text:'#eef2e6',muted:'#a8b5a2',border:'#3a4a38',accent:'#243422',primary:'#7fb069'}},
+      {name:'Aqua',vars:{bg:'#0f172a',panel:'#0b2239',sidebar:'#11304f',text:'#e5f0ff',muted:'#9fb7d9',border:'#1f3b5b',accent:'#0d2a4a',primary:'#22d3ee'}},
+      {name:'Amatista',vars:{bg:'#1b1325',panel:'#241133',sidebar:'#2b1841',text:'#f3e8ff',muted:'#c4b5fd',border:'#3b236a',accent:'#1f1744',primary:'#a78bfa'}},
+      {name:'Solar',vars:{bg:'#111827',panel:'#0f1f2e',sidebar:'#152436',text:'#fde68a',muted:'#fcd34d',border:'#374151',accent:'#0b2536',primary:'#f59e0b'}}
+    ];
+    function applyTheme(vars){
+      const root=document.documentElement;
+      for(const k in vars){root.style.setProperty('--'+k,vars[k]);}
+      const bg = vars.panel || getComputedStyle(root).getPropertyValue('--panel').trim();
+      const isLight = (()=>{const c=(bg||'').replace('#',''); if(c.length!==6)return false; const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16); const lumin=(0.2126*r+0.7152*g+0.0722*b)/255; return lumin>0.6;})();
+      root.style.setProperty('--button-bg', isLight ? '#e9eef5' : '#454545');
+      localStorage.setItem(THEME_KEY, JSON.stringify(vars));
+    }
+    function buildPalette(){const cont=$('#palette');cont.innerHTML='';palettes.forEach(p=>{const sw=document.createElement('div');sw.className='swatch';sw.title=p.name;sw.style.background=p.vars.bg;sw.onclick=()=>{applyTheme(p.vars);cont.classList.remove('show');};cont.appendChild(sw);});}
+    function restoreTheme(){try{const saved=JSON.parse(localStorage.getItem(THEME_KEY));if(saved)applyTheme(saved);}catch{}}
+
+    // ===== Estado
+    function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+    function ensureFolder(){if(!state.folders.length){const f={id:uid(),name:'General',cards:[]};state.folders.push(f);state.activeFolderId=f.id;save();}}
+    function getActiveFolder(){return state.folders.find(f=>f.id===state.activeFolderId)||state.folders[0];}
+    function render(){ensureFolder();renderFolders();renderCards();updateUndoButtons();updateSelectionUI();}
+
+    // ===== Selección múltiple
+    function toggleSelectionMode(){
+      selectionMode=!selectionMode;
+      document.body.classList.toggle('select-mode', selectionMode);
+      if(!selectionMode) clearSelection();
+      $('#selectModeBtn').textContent = selectionMode ? 'Salir seleccionar' : 'Seleccionar';
+    }
+    function toggleSelect(id){
+      if(!selectionMode) return;
+      if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+      updateSelectionUI();
+      renderCards(); // para marcar visualmente
+    }
+    function clearSelection(){ selectedIds.clear(); updateSelectionUI(); renderCards(); }
+    function getVisibleCards(){
+      const f=getActiveFolder(); if(!f) return [];
+      const q=($('#searchInput')?.value||'').toLowerCase();
+      return q?f.cards.filter(c=>(c.title+c.desc).toLowerCase().includes(q)):f.cards;
+    }
+    function selectAllVisible(){
+      selectedIds.clear();
+      getVisibleCards().forEach(c=>selectedIds.add(c.id));
+      updateSelectionUI();
+      renderCards();
+    }
+    function updateSelectionUI(){
+      const count=selectedIds.size;
+      $('#selCount').textContent = count? `${count} seleccionad${count===1?'o':'os'}` : '';
+      $('#deleteSelectedBtn').disabled = count===0;
+    }
+    $('#selectModeBtn').onclick=toggleSelectionMode;
+    $('#deleteSelectedBtn').onclick=()=>{
+      const count=selectedIds.size;
+      if(!count) return;
+      if(confirm(`Eliminar ${count} tarjeta${count>1?'s':''}?`)){
+        pushHistory();
+        const f=getActiveFolder();
+        f.cards = f.cards.filter(c=>!selectedIds.has(c.id));
+        clearSelection();
+        save(); render();
+      }
+    };
+
+    // ===== Carpetas (con drop de tarjetas)
+    function renderFolders(){
+      foldersEl.innerHTML='';
+      state.folders.forEach(f=>{
+        const el=document.createElement('div');
+        el.className='folder'; el.dataset.id=f.id; el.dataset.active=state.activeFolderId===f.id;
+        el.innerHTML=`<span class="name">📁 ${f.name}</span><span class="count">${f.cards.length}</span>`;
+        el.onclick=()=>{state.activeFolderId=f.id;save();render();};
+        // soporta soltar tarjetas (una o múltiples)
+        el.ondragover=e=>{ if(e.dataTransfer.types.includes('application/x-card')){ e.preventDefault(); el.classList.add('drop-target'); } };
+        el.ondragleave=()=>el.classList.remove('drop-target');
+        el.ondrop=e=>{
+          e.preventDefault(); el.classList.remove('drop-target');
+          const idsJSON=e.dataTransfer.getData('cardIds');
+          const fromId=e.dataTransfer.getData('fromFolder');
+          if(idsJSON && fromId && fromId!==f.id){
+            const ids=JSON.parse(idsJSON);
+            pushHistory();
+            ids.forEach(id=> moveCardToFolder(id, f.id, fromId, true));
+            save(); render();
+          }
+        };
+        foldersEl.appendChild(el);
+      });
+    }
+
+    // ===== Tarjetas (drag & drop, duplicar, copiar)
+    function renderCards(){
+      gridEl.innerHTML='';
+      const f=getActiveFolder(); if(!f){gridEl.textContent='';return;}
+      const q=($('#searchInput')?.value||'').toLowerCase();
+      const cards=q?f.cards.filter(c=>(c.title+c.desc).toLowerCase().includes(q)):f.cards;
+      if(!cards.length){ gridEl.innerHTML='<div class="empty">Vacío</div>'; return; }
+      cards.forEach(c=>{
+        const card=document.createElement('div'); card.className='card'; card.dataset.id=c.id; card.draggable=true;
+        if(selectedIds.has(c.id)) card.classList.add('selected');
+
+        // checkbox en selección
+        const selBox=document.createElement('div');
+        selBox.className='sel';
+        selBox.innerHTML='<input type="checkbox" />';
+        const cb = selBox.querySelector('input');
+        cb.checked = selectedIds.has(c.id);
+        cb.onclick=(ev)=>{ ev.stopPropagation(); toggleSelect(c.id); };
+        card.appendChild(selBox);
+
+        // Drag init (soporta múltiple selección)
+        card.ondragstart=e=>{
+          // conjunto a arrastrar: si el card está seleccionado, arrastra todo el set; si no, solo este
+          const set = (selectionMode && selectedIds.has(c.id)) ? Array.from(selectedIds) : [c.id];
+          e.dataTransfer.setData('cardIds', JSON.stringify(set));
+          e.dataTransfer.setData('fromFolder', f.id);
+          e.dataTransfer.setData('application/x-card','1');
+          e.dataTransfer.effectAllowed='move';
+          setTimeout(()=>card.classList.add('ghost'),0);
+        };
+        card.ondragend=()=>card.classList.remove('ghost');
+
+        // contenido
+        card.innerHTML += `
+          <h3>${c.title}</h3>
+          <p>${c.desc}</p>
+          <div class="actions">
+            <button class="copyBtn">Copiar</button>
+            <button class="dupBtn">Duplicar</button>
+          </div>`;
+
+        // selector de carpeta en la tarjeta (mueve solo esa tarjeta)
+        const folderSelect=document.createElement('select');
+        state.folders.forEach(folder=>{
+          const opt=document.createElement('option');
+          opt.value=folder.id; opt.textContent=folder.name;
+          if(folder.id===f.id) opt.selected=true;
+          folderSelect.appendChild(opt);
+        });
+        folderSelect.onchange=()=>{ pushHistory(); moveCardToFolder(c.id, folderSelect.value, f.id); };
+        card.querySelector('.actions').appendChild(folderSelect);
+
+        // clic: si estamos en modo selección, alterna selección; si no, doble clic edita
+        card.onclick=()=>{ if(selectionMode) toggleSelect(c.id); };
+        card.ondblclick=()=>{ if(!selectionMode) openCardEditor(c.id); };
+
+        // acciones
+        card.querySelector('.copyBtn').onclick=(ev)=>{ev.stopPropagation(); navigator.clipboard.writeText(c.desc);};
+        card.querySelector('.dupBtn').onclick=(ev)=>{ev.stopPropagation(); pushHistory(); duplicateCard(c.id);};
+
+        gridEl.appendChild(card);
+      });
+    }
+
+    // ===== Helpers
+    function findCard(cardId){
+      for(const f of state.folders){
+        const idx=f.cards.findIndex(c=>c.id===cardId);
+        if(idx>-1) return {folder:f,index:idx};
+      }
+      return null;
+    }
+    function duplicateCard(id){
+      const found=findCard(id);
+      if(found){
+        const c=found.folder.cards[found.index];
+        found.folder.cards.push({id:uid(),title:c.title+' (copia)',desc:c.desc});
+        save(); render();
+      }
+    }
+    function moveCardToFolder(id,target,from,skipRender=false){
+      const ff=state.folders.find(f=>f.id===from);
+      const tf=state.folders.find(f=>f.id===target);
+      if(!ff||!tf) return;
+      const idx=ff.cards.findIndex(c=>c.id===id);
+      if(idx>-1){ const [c]=ff.cards.splice(idx,1); tf.cards.push(c); }
+      state.activeFolderId = target;
+      if(!skipRender){ save(); render(); }
+    }
+
+    // ===== Carpetas: crear/renombrar/eliminar
+    $('#addFolderBtn').onclick=()=>{const n=prompt('Nombre carpeta:'); if(n){ pushHistory(); const f={id:uid(),name:n,cards:[]}; state.folders.push(f); state.activeFolderId=f.id; save(); render(); }};
+    $('#renameFolderBtn').onclick=()=>{const f=getActiveFolder(); if(f){ const n=prompt('Nuevo nombre',f.name); if(n){ pushHistory(); f.name=n; save(); render(); } }};
+    $('#deleteFolderBtn').onclick=()=>{const f=getActiveFolder(); if(f && confirm('Eliminar carpeta? \nSe perderán sus tarjetas.')){ pushHistory(); state.folders=state.folders.filter(x=>x.id!==f.id); state.activeFolderId=state.folders[0]?.id||null; save(); render(); }};
+
+    // ===== Editor
+    $('#addCardBtn').onclick=()=>openCardEditor();
+    const modal=$('#modal'), inputTitle=$('#cardTitle'), inputDesc=$('#cardDesc'), folderSelectInModal=$('#cardFolder'); let editingCardId=null;
+    function openCardEditor(id=null){
+      editingCardId=id;
+      let cf=getActiveFolder(); let c=null;
+      if(id){ for(const f of state.folders){ const idx=f.cards.findIndex(x=>x.id===id); if(idx>-1){ c=f.cards[idx]; cf=f; break; } } }
+      inputTitle.value=c?.title||''; inputDesc.value=c?.desc||'';
+      folderSelectInModal.innerHTML=''; state.folders.forEach(f=>{ const opt=document.createElement('option'); opt.value=f.id; opt.textContent=f.name; if(f.id===cf.id) opt.selected=true; folderSelectInModal.appendChild(opt); });
+      modal.classList.add('show');
+    }
+    function closeCardEditor(){ modal.classList.remove('show'); }
+    $('#cancelEdit').onclick=closeCardEditor;
+    $('#saveEdit').onclick=()=>{
+      const t=inputTitle.value.trim(), d=inputDesc.value.trim(), fid=folderSelectInModal.value;
+      pushHistory();
+      if(editingCardId){
+        const found=findCard(editingCardId);
+        if(found){
+          const cur=found.folder; const card=cur.cards[found.index];
+          card.title=t; card.desc=d;
+          if(cur.id!==fid){ cur.cards.splice(found.index,1); state.folders.find(x=>x.id===fid).cards.push(card); state.activeFolderId=fid; }
+        }
+      }else{
+        state.folders.find(x=>x.id===fid).cards.push({id:uid(),title:t||'Sin título',desc:d});
+        state.activeFolderId=fid;
+      }
+      save(); render(); closeCardEditor();
+    };
+
+    // ===== Búsqueda
+    $('#searchInput').oninput=()=>render();
+
+    // ===== Exportar/Importar
+    $('#exportBtn').onclick=()=>{ const blob=new Blob([JSON.stringify(state)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='prompts.json'; a.click(); };
+    $('#importBtn').onclick=()=>$('#importFile').click();
+    $('#importFile').onchange=e=>{
+      const file=e.target.files[0]; if(file){
+        const r=new FileReader();
+        r.onload=ev=>{
+          try{
+            const data=JSON.parse(ev.target.result);
+            if(data && Array.isArray(data.folders)){
+              pushHistory();
+              state=data; save(); render();
+            } else alert('JSON inválido');
+          }catch{ alert('JSON inválido'); }
+        };
+        r.readAsText(file);
+      }
+    };
+
+    // ===== Tema (paleta)
+    const themeBtn=$('#themeBtn'), palette=$('#palette');
+    function buildPalette(){ const cont=$('#palette'); cont.innerHTML=''; palettes.forEach(p=>{ const sw=document.createElement('div'); sw.className='swatch'; sw.title=p.name; sw.style.background=p.vars.bg; sw.onclick=()=>{ applyTheme(p.vars); cont.classList.remove('show'); }; cont.appendChild(sw); }); }
+    themeBtn.onclick=()=>{ if(palette.childElementCount===0) buildPalette(); palette.classList.toggle('show'); };
+    document.addEventListener('click',e=>{ if(!palette.contains(e.target) && e.target!==themeBtn) palette.classList.remove('show'); });
+    restoreTheme();
+
+    render();
+  </script>
+</body>
+</html>
